@@ -61,7 +61,7 @@ canonical = json.dumps(
 
 ## 台帳
 
-出来上がりの sha256 は本体の `tools/comfyui/recipes/raw.lock.json` にあり（ファイル名 → sha256）、
+出来上がりの sha256 は本体の `tools/comfyui/raw.lock.json` にあり（ファイル名 → sha256）、
 取ってきたファイルが正しいかを照合します。**台帳に無い鍵は、まだ誰も作っていない手**です。
 
 ## 使い方
@@ -76,5 +76,5 @@ UNMAPPED_ISLAND_ART_RAW=<この clone の raw> python build.py recipes/abaca.jso
 指さなければ本体の `.art-raw/`（gitignore 済み）が使われ、足りないぶんはこのリポジトリの `main` から
 1枚ずつ落ちてきます。**置き場に揃っていれば ComfyUI は要りません**——後処理だけが掛かります。
 
-生成した手はここへ足され、台帳にも書かれます。生データの追加と、本体の `raw.lock.json` の更新は
-**必ず同じ内容で揃えてください**（照合できなくなります）。
+生成した手はここへ足され、台帳にも書かれます。生データの追加と、本体の
+`tools/comfyui/raw.lock.json` の更新は**必ず同じ内容で揃えてください**（照合できなくなります）。
