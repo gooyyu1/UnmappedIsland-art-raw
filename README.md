@@ -1,17 +1,17 @@
 # UnmappedIsland の絵の生データ
 
-[UnmappedIsland](https://github.com/gooyyu1/UnmappedIsland) の
-`tools/comfyui/recipes/*.json` が食べる、**ComfyUI の生成物（後処理前）**を置きます。
-完成品（`src/assets/` の PNG）は本体にあり、ここには入りません。
+[UnmappedIsland](https://github.com/gooyyu1/UnmappedIsland) の `tools/comfyui/recipes/*.json` が食べる、
+**ComfyUI の生成物（後処理前）**を置きます。完成品（`src/assets/` の PNG）は本体にあり、ここには
+入りません。
 
 ## なぜ別のリポジトリなのか
 
 **本体の clone を重くしないためです。** 生データは1枚1MB前後、全部で180MB近くになります。
 
-`git clone --filter=blob:none` やスパースチェックアウトでも軽くできますが、**clone の仕方に
-介入できない環境**（CI、クラウド上の自動セッション）では効きません。README を読む前に clone が
-済んでしまうからです。同じ理由で、本体の中の別ブランチに置く案も駄目でした——`git clone` は
-既定で全ブランチのオブジェクトを取ります。
+`git clone --filter=blob:none` やスパースチェックアウトでも軽くできますが、**clone の仕方に介入
+できない環境**（CI、クラウド上の自動セッション）では効きません。README を読む前に clone が済んで
+しまうからです。同じ理由で、本体の中の別ブランチに置く案も駄目でした——`git clone` は既定で全ブランチの
+オブジェクトを取ります。
 
 別リポジトリなら、**取りに行かない限り落ちてきません。**
 
@@ -32,22 +32,49 @@
 raw/<読みやすい名前>_<鍵12桁>.png
 ```
 
-鍵は**その手の入力そのもの**から作ります。
+**読みやすい名前**は、その手の出力ファイルの stem です。SDXL の生成なら `<プロンプトのキー>_<seed>`
+（`abaca_9437`）、Qwen Image Edit の派生なら `<完成品のstem>_edit_<seed>`（`map_edit_1`）。名前は
+置き方に過ぎず絵を決めないので、**鍵には入りません**（同じ絵が別の鍵を持つのを避けるため）。
 
-```
-鍵 = sha256(入力画像の中身 + プロンプト本文 + seed + 寸法 + ワークフロー)[:12]
+**鍵はその手の入力そのもの**から作ります。
+
+```python
+canonical = json.dumps(
+    {"source": <入力画像のsha256（入力を取らない生成では null）>,
+     "workflow": <ComfyUI の /prompt へ投げる直前のワークフロー>},
+    sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+)
+鍵 = sha256(canonical.encode("utf-8")).hexdigest()[:12]
 ```
 
-- プロンプトを1文字直すと鍵が変わるので、**古い生データを新しいレシピの入力として黙って使う事故が
+- `workflow` は API 形式のワークフローに値を差し込み終えた形です。プロンプト本文・seed・寸法・
+  ワークフローの種類に加えて、**モデルと LoRA とその強度も入っています**。プロンプトを1文字直しても
+  LoRA を差し替えても鍵が変わるので、**古い生データを新しいレシピの入力として黙って使う事故が
   起きません。** seed だけで名付けるとここが穴になります。
-- 派生の鍵は元の鍵を入力に含むので、連鎖がそのまま繋がります。
-- 下絵（`layout_sketch.py`）や下地（`sky_art.py`）は1秒で描けるので置きません。描いた結果の
-  中身のハッシュを、次の手の鍵に含めます。
+- **入力画像はファイル名ではなく中身（`source`）で表します。** Qwen Image Edit のワークフローには
+  ComfyUI へ上げたときのファイル名が入りますが、それは絵を決めないので `"$input"` のまま伏せます。
+- 派生の `source` は元の生データの sha256 なので、連鎖がそのまま繋がります。
 
-出来上がりの sha256 は本体側の `tools/comfyui/recipes/raw.lock.json` に持ち、取ってきた
-ファイルが正しいかを照合します。
+**1秒で描けるものは置きません**（下絵 `layout_sketch.py`、下地 `sky_art.py`、絵文字 `emoji_page.py`、
+染み `skin_tint.py`、砂埃 `dust_puff.py`）。描いた結果の中身のハッシュが、次の手の `source` として
+鍵に入ります。
+
+## 台帳
+
+出来上がりの sha256 は本体の `tools/comfyui/recipes/raw.lock.json` にあり（ファイル名 → sha256）、
+取ってきたファイルが正しいかを照合します。**台帳に無い鍵は、まだ誰も作っていない手**です。
 
 ## 使い方
 
-本体の `build.py` が、生データを必要になった時にここから取る予定です（**未実装**）。
-今は手で置いています。
+本体の `build.py` が、生データを必要になった時にここから取ります（`tools/comfyui/raw_store.py`）。
+置き場を環境変数で指せます。
+
+```bash
+UNMAPPED_ISLAND_ART_RAW=<この clone の raw> python build.py recipes/abaca.json
+```
+
+指さなければ本体の `.art-raw/`（gitignore 済み）が使われ、足りないぶんはこのリポジトリの `main` から
+1枚ずつ落ちてきます。**置き場に揃っていれば ComfyUI は要りません**——後処理だけが掛かります。
+
+生成した手はここへ足され、台帳にも書かれます。生データの追加と、本体の `raw.lock.json` の更新は
+**必ず同じ内容で揃えてください**（照合できなくなります）。
